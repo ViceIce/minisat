@@ -8,6 +8,8 @@ project(minisat)
 option(STATIC_BINARIES "Link binaries statically." ON)
 option(USE_SORELEASE   "Use SORELEASE in shared library filename." ON)
 
+option(BUILD_EXECUTABLES "Build executables." ON)
+
 #--------------------------------------------------------------------------------------------------
 # Library version:
 
@@ -26,8 +28,11 @@ set(MINISAT_SOVERSION ${MINISAT_SOMAJOR})
 #--------------------------------------------------------------------------------------------------
 # Dependencies:
 
-find_package(ZLIB)
-include_directories(${ZLIB_INCLUDE_DIR})
+if(BUILD_EXECUTABLES)
+  find_package(ZLIB)
+  include_directories(${ZLIB_INCLUDE_DIR})
+endif()
+
 include_directories(${minisat_SOURCE_DIR})
 
 #--------------------------------------------------------------------------------------------------
@@ -44,39 +49,48 @@ set(MINISAT_LIB_SOURCES
     minisat/core/Solver.cc
     minisat/simp/SimpSolver.cc)
 
-add_library(minisat-lib-static STATIC ${MINISAT_LIB_SOURCES})
-add_library(minisat-lib-shared SHARED ${MINISAT_LIB_SOURCES})
-
-target_link_libraries(minisat-lib-shared ${ZLIB_LIBRARY})
-target_link_libraries(minisat-lib-static ${ZLIB_LIBRARY})
-
-add_executable(minisat_core minisat/core/Main.cc)
-add_executable(minisat_simp minisat/simp/Main.cc)
-
 if(STATIC_BINARIES)
-  target_link_libraries(minisat_core minisat-lib-static)
-  target_link_libraries(minisat_simp minisat-lib-static)
+  add_library(minisat-lib STATIC ${MINISAT_LIB_SOURCES})
+  target_link_libraries(minisat-lib ${ZLIB_LIBRARY})
+  
+  et_target_properties(minisat-lib PROPERTIES OUTPUT_NAME "minisat")
 else()
-  target_link_libraries(minisat_core minisat-lib-shared)
-  target_link_libraries(minisat_simp minisat-lib-shared)
+  add_library(minisat-lib SHARED ${MINISAT_LIB_SOURCES})
+  target_link_libraries(minisat-lib ${ZLIB_LIBRARY})
+  set_target_properties(minisat-lib
+    PROPERTIES
+      OUTPUT_NAME "minisat" 
+      VERSION ${MINISAT_VERSION}
+      SOVERSION ${MINISAT_SOVERSION})
 endif()
 
-set_target_properties(minisat-lib-static PROPERTIES OUTPUT_NAME "minisat")
-set_target_properties(minisat-lib-shared
-  PROPERTIES
-    OUTPUT_NAME "minisat" 
-    VERSION ${MINISAT_VERSION}
-    SOVERSION ${MINISAT_SOVERSION})
+if(BUILD_EXECUTABLES)
+  add_executable(minisat_core minisat/core/Main.cc)
+  add_executable(minisat_simp minisat/simp/Main.cc)
 
-set_target_properties(minisat_simp       PROPERTIES OUTPUT_NAME "minisat")
+  target_link_libraries(minisat_core minisat-lib)
+  target_link_libraries(minisat_simp minisat-lib)
+endif()
+
+
+if(BUILD_EXECUTABLES)
+  set_target_properties(minisat_simp       PROPERTIES OUTPUT_NAME "minisat")
+endif()
 
 #--------------------------------------------------------------------------------------------------
 # Installation targets:
 
-install(TARGETS minisat-lib-static minisat-lib-shared minisat_core minisat_simp 
+if(BUILD_EXECUTABLES)
+  install(TARGETS minisat-lib minisat_core minisat_simp 
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
+else()
+  install(TARGETS minisat-lib
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
+endif()
 
 install(DIRECTORY minisat/mtl minisat/utils minisat/core minisat/simp
         DESTINATION include/minisat
